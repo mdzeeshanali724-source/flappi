@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Saifi Flappy Racer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    color: #f6faff;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: radial-gradient(circle at top, #0b1c3d 0%, #02040b 70%);
+    user-select: none;
+  }
+  #scene-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* ══════════════════════════════════
+     NEON GLOW KEYFRAME
+     ══════════════════════════════════ */
+  @keyframes neonGlow {
+    0%   { box-shadow: 0 0 6px #00e5ff, 0 0 12px #00e5ff, 0 0 22px #00aaff, 0 0 36px #0077ff;
+           border-color: rgba(0, 229, 255, 0.9); }
+    50%  { box-shadow: 0 0 10px #00e5ff, 0 0 22px #00cfff, 0 0 40px #00aaff, 0 0 60px #0055ff;
+           border-color: rgba(0, 229, 255, 1); }
+    100% { box-shadow: 0 0 6px #00e5ff, 0 0 12px #00e5ff, 0 0 22px #00aaff, 0 0 36px #0077ff;
+           border-color: rgba(0, 229, 255, 0.9); }
+  }
+
+  @keyframes pulse {
+    0%   { opacity: 0.65; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.65; }
+  }
+
+  /* ══════════════════════════════════
+     DESKTOP HUD — top-right corner
+     ══════════════════════════════════ */
+  .hud {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 5;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .hud-card {
+    background: rgba(6, 14, 35, 0.78);
+    border: 1.5px solid rgba(0, 229, 255, 0.9);
+    border-radius: 12px;
+    padding: 8px 14px;
+    min-width: 100px;
+    max-width: 118px;
+    backdrop-filter: blur(8px);
+    animation: neonGlow 2.4s ease-in-out infinite;
+  }
+
+  .hud-card span.value {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .hud-card small {
+    display: block;
+    opacity: 0.72;
+    font-size: 0.62rem;
+    margin-top: 2px;
+  }
+
+  .level-card {
+    min-width: 100px;
+    max-width: 118px;
+  }
+
+  .progress-outer {
+    margin-top: 5px;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+
+  .progress-inner {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #33ffd5, #ffe36d);
+    transition: width 0.2s ease;
+  }
+
+  #boostStatus.pulse { animation: pulse 1s ease-in-out infinite; }
+  #boostStatus.active { color: #ffee75; }
+
+  /* ══════════════════════════════════
+     MOBILE HUD — horizontal top bar
+     ══════════════════════════════════ */
+  @media (max-width: 720px) {
+    .hud {
+      top: 10px;
+      right: 8px;
+      left: 8px;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    /* All three cards share equal flex space */
+    .hud-card {
+      flex: 1;
+      min-width: 0;
+      max-width: none;
+      border-radius: 10px;
+      padding: 7px 10px;
+    }
+
+    /* Score card — center, slightly larger */
+    .hud-card.score-card {
+      order: 2;
+      text-align: center;
+    }
+
+    /* Level card — left */
+    .hud-card.level-card {
+      order: 1;
+      text-align: left;
+      min-width: 0;
+      max-width: none;
+    }
+
+    /* Speed card — right */
+    .hud-card.speed-card {
+      order: 3;
+      text-align: right;
+    }
+
+    /* Uniform font size across all three on mobile */
+    .hud-card span.value {
+      font-size: 1.0rem;
+    }
+
+    .hud-card small {
+      font-size: 0.58rem;
+    }
+
+    .progress-outer {
+      height: 4px;
+      margin-top: 4px;
+    }
+  }
+
+  /* ══════════════════════════════════
+     OVERLAYS & BUTTONS
+     ══════════════════════════════════ */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(3, 5, 16, 0.82);
+    backdrop-filter: blur(12px);
+    color: #ffffff;
+    text-align: center;
+    padding: 30px;
+    z-index: 12;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .overlay h1, .overlay h2 {
+    letter-spacing: 0.1em;
+    margin-bottom: 14px;
+  }
+  .overlay p, .overlay li {
+    max-width: 420px;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .overlay ul {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 20px;
+  }
+  .overlay li { margin: 4px 0; }
+
+  button {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 32px;
+    border-radius: 999px;
+    background: linear-gradient(120deg, #33ffd5, #ffad4a);
+    color: #051024;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s ease;
+  }
+  button:hover { transform: translateY(-2px) scale(1.02); }
+
+  #flash {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.95);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 9;
+  }
+
+  .controls-label {
+    font-size: 0.65rem;
+    opacity: 0.5;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+</style>
+</head>
+<body>
+<div id="scene-container"></div>
+<div id="flash"></div>
+
+<div class="hud">
+  <!-- Desktop: score → level → speed (top to bottom, right side)  -->
+  <!-- Mobile:  level left (order1) · score center (order2) · speed right (order3) -->
+  <div class="hud-card score-card">
+    <small>Score</small>
+    <span class="value" id="scoreValue">0</span>
+    <small>Best: <span id="bestValue">0</span></small>
+  </div>
+  <div class="hud-card level-card">
+    <small>LEVEL</small>
+    <span class="value" id="levelValue">L1 · Easy</span>
+    <div class="progress-outer">
+      <div class="progress-inner" id="levelProgress"></div>
+    </div>
+    <small id="difficultyLabel">Easy Pace</small>
+  </div>
+  <div class="hud-card speed-card">
+    <small>Speed</small>
+    <span class="value" id="speedValue">0 u/s</span>
+    <small id="boostStatus">No Boost</small>
+  </div>
+</div>
+
+<div class="overlay show" id="menu">
+  <h1>Saifi Flappy Racer</h1>
+  <p>Cyber flaps meet neon bike lanes. Survive the pipes, surf the lanes, and stay airborne.</p>
+
+  <div id="pcControls">
+    <ul>
+      <li>A → shift to the RIGHT lane</li>
+      <li>D → shift to the LEFT lane</li>
+      <li>W → hold for 150% turbo speed</li>
+      <li>Click / Right‑click / Space → flap upward</li>
+    </ul>
+    <p class="controls-label">⌨ Keyboard Controls</p>
+  </div>
+
+  <div id="mobileControls" style="display:none;">
+    <ul>
+      <li>Swipe Left → shift to the LEFT lane</li>
+      <li>Swipe Right → shift to the RIGHT lane</li>
+      <li>Swipe Up → turbo boost</li>
+      <li>Tap → flap upward</li>
+    </ul>
+    <p class="controls-label">📱 Touch Controls</p>
+  </div>
+
+  <p>Best Score: <span id="menuBest">0</span></p>
+  <button id="startButton">Launch Run</button>
+</div>
+
+<div class="overlay" id="gameover">
+  <h2>Run Complete</h2>
+  <p>Score: <strong id="gameoverScore">0</strong></p>
+  <p>Best: <strong id="gameoverBest">0</strong></p>
+  <p>Level Reached: <strong id="gameoverLevel">1</strong></p>
+  <button id="restartButton">Ride Again</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+(() => {
+  const STATE = { MENU: 0, PLAYING: 1, DYING: 2, DEAD: 3 };
+  const lanePositions = [-7, 0, 7];
+  const laneNames = ['LEFT', 'CENTER', 'RIGHT'];
+  const laneWidth = 8;
+  const laneHalf = laneWidth * 0.5;
+  const FLOOR_Y = 1.5;
+  const CEIL_Y = 40;
+  const PIPE_DEPTH = 12;
+  const PIPE_WIDTH = 5.6;
+  const FLAP_FORCE = 16.5;
+  const GRAVITY = -48;
+  const powerUpPattern = [20, 30, 40];
+
+  const levelConfigs = [
+    { level: 1, min: 0,   max: 10,  gap: 16, spacing: 110, speed: 32, label: 'Easy' },
+    { level: 2, min: 10,  max: 30,  gap: 14, spacing: 100, speed: 35, label: 'Medium-Easy' },
+    { level: 3, min: 30,  max: 60,  gap: 12, spacing: 92,  speed: 38, label: 'Intermediate' },
+    { level: 4, min: 60,  max: 100, gap: 10, spacing: 86,  speed: 42, label: 'Hard' },
+    { level: 5, min: 100, max: 200, gap: 9,  spacing: 80,  speed: 46, label: 'Hard-Pro' }
+  ];
+
+  /* ─── Mobile Detection ─── */
+  const isMobile = ('ontouchstart' in window && navigator.maxTouchPoints > 0)
+    || /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  /* ─── Mobile-only state ─── */
+  const MOBILE_GRACE_DURATION = 0.55;
+  const MOBILE_GRAVITY_FACTOR = 0.28;
+  let mobileLaneGraceTimer = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let touchSwiped = false;
+
+  if (isMobile) {
+    document.getElementById('pcControls').style.display = 'none';
+    document.getElementById('mobileControls').style.display = 'block';
+  }
+
+  const container    = document.getElementById('scene-container');
+  const hudScore     = document.getElementById('scoreValue');
+  const hudBest      = document.getElementById('bestValue');
+  const hudLevel     = document.getElementById('levelValue');
+  const hudDiff      = document.getElementById('difficultyLabel');
+  const hudSpeed     = document.getElementById('speedValue');
+  const hudProgress  = document.getElementById('levelProgress');
+  const boostStatus  = document.getElementById('boostStatus');
+  const menuOverlay  = document.getElementById('menu');
+  const menuBest     = document.getElementById('menuBest');
+  const startButton  = document.getElementById('startButton');
+  const gameoverOverlay = document.getElementById('gameover');
+  const gameoverScore   = document.getElementById('gameoverScore');
+  const gameoverBest    = document.getElementById('gameoverBest');
+  const gameoverLevel   = document.getElementById('gameoverLevel');
+  const restartButton   = document.getElementById('restartButton');
+  const flashLayer      = document.getElementById('flash');
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x030613);
+  scene.fog = new THREE.Fog(0x030613, 80, 340);
+
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 18, -25);
+  const cameraTarget = new THREE.Vector3();
+
+  const hemi = new THREE.HemisphereLight(0x7cd8ff, 0x030910, 0.8);
+  scene.add(hemi);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  dirLight.position.set(40, 60, -50);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(1024, 1024);
+  dirLight.shadow.camera.left   = -90;
+  dirLight.shadow.camera.right  =  90;
+  dirLight.shadow.camera.top    =  90;
+  dirLight.shadow.camera.bottom = -90;
+  dirLight.shadow.camera.far    = 300;
+  scene.add(dirLight);
+
+  const groundGeo = new THREE.PlaneGeometry(200, 2000);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x051629, metalness: 0.3, roughness: 0.85 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = FLOOR_Y - 1;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const grid = new THREE.GridHelper(2000, 80, 0x1de7ff, 0x0a5b70);
+  grid.material.opacity = 0.25;
+  grid.material.transparent = true;
+  grid.position.y = FLOOR_Y + 0.02;
+  scene.add(grid);
+
+  const laneStrips     = [];
+  const laneHighlights = [];
+  const laneStripGeo   = new THREE.PlaneGeometry(laneWidth * 0.7, 600);
+  const laneStripMat   = new THREE.MeshBasicMaterial({ color: 0x19f7ff, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+  const laneHighlightGeo = new THREE.PlaneGeometry(laneWidth * 0.9, 220);
+
+  lanePositions.forEach(x => {
+    const strip = new THREE.Mesh(laneStripGeo, laneStripMat.clone());
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(x, FLOOR_Y + 0.01, 0);
+    scene.add(strip);
+    laneStrips.push(strip);
+
+    const highlight = new THREE.Mesh(laneHighlightGeo, new THREE.MeshBasicMaterial({
+      color: 0xfff36d,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    }));
+    highlight.rotation.x = -Math.PI / 2;
+    highlight.position.set(x, FLOOR_Y + 0.02, 0);
+    highlight.visible = false;
+    scene.add(highlight);
+    laneHighlights.push(highlight);
+  });
+
+  const starField = (() => {
+    const count = 800;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3]     = THREE.MathUtils.randFloatSpread(320);
+      pos[i * 3 + 1] = 60 + Math.random() * 160;
+      pos[i * 3 + 2] = THREE.MathUtils.randFloatSpread(320);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ color: 0x9fdcff, size: 0.9, transparent: true, opacity: 0.5, depthWrite: false });
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+    return points;
+  })();
+
+  function createPlayer() {
+    const group = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0xffd166, roughness: 0.35, metalness: 0.2, emissive: 0x442200
+    });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.9, 32, 32), bodyMat);
+    body.castShadow = true;
+    group.add(body);
+
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.2, 24), new THREE.MeshStandardMaterial({
+      color: 0xff7f50, metalness: 0.4, roughness: 0.3, emissive: 0x441100
+    }));
+    beak.rotation.z = Math.PI / 2;
+    beak.position.set(1.9, 0.2, 0.3);
+    group.add(beak);
+
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.25, 16, 32), new THREE.MeshStandardMaterial({
+      color: 0x1e2233, metalness: 0.85, roughness: 0.3, emissive: 0x050505
+    }));
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(-0.4, -1.2, 0);
+    wheel.castShadow = true;
+    group.add(wheel);
+
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 16), new THREE.MeshStandardMaterial({
+      color: 0x45f9ff, emissive: 0x0c5d7f, roughness: 0.2
+    }));
+    handle.rotation.z = Math.PI / 2;
+    handle.position.set(0.6, 0.5, 0.65);
+    group.add(handle);
+
+    const wingMat = new THREE.MeshStandardMaterial({
+      color: 0xfff3b0, roughness: 0.3, metalness: 0.1, emissive: 0x332200
+    });
+    const leftWing = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.7, 18), wingMat);
+    leftWing.rotation.set(Math.PI / 2, 0, 0);
+    leftWing.position.set(-0.6, 0.3, 0.85);
+    group.add(leftWing);
+
+    const rightWing = leftWing.clone();
+    rightWing.position.z = -0.85;
+    group.add(rightWing);
+
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.2, 16), wingMat);
+    tail.rotation.set(Math.PI, 0, 0);
+    tail.position.set(-1.5, 0.7, 0);
+    group.add(tail);
+
+    group.castShadow = true;
+    return { group, bodyMat, wingL: leftWing, wingR: rightWing, wheel };
+  }
+
+  const playerRig = createPlayer();
+  scene.add(playerRig.group);
+
+  const player = {
+    mesh: playerRig.group,
+    radius: 1.6,
+    x: lanePositions[1],
+    y: 16,
+    z: 0,
+    vy: 0,
+    roll: 0,
+    targetLane: 1,
+    parts: playerRig
+  };
+
+  const trailParticles = [];
+  const trailPool = [];
+  let trailTimer = 0;
+  const obstacles = [];
+  let nextGroupZ = 80;
+
+  let score = 0;
+  let bestScore = parseInt(localStorage.getItem('saifiFlappyBest') || '0', 10);
+  hudBest.textContent = bestScore;
+  menuBest.textContent = bestScore;
+
+  let state = STATE.MENU;
+  let currentLevelData = levelConfigs[0];
+  let forwardSpeed = 0;
+  let speedBoostActive = false;
+  let invincible = false;
+  let invincibleTimer = 0;
+  let laneBoost = { active: false, laneIndex: null };
+  let nextPowerUpScore = powerUpPattern[0];
+  let powerPatternIndex = 0;
+
+  let shakeIntensity = 0;
+  let flashIntensity = 0;
+  let deathTimer = 0;
+  let globalTime = 0;
+
+  const clock = new THREE.Clock();
+
+  function spawnObstacleGroup(z) {
+    const group = new THREE.Group();
+    group.position.z = z;
+    const lanesInfo = [];
+    const baseGap = currentLevelData.gap;
+
+    for (let i = 0; i < lanePositions.length; i++) {
+      const gapSize = THREE.MathUtils.clamp(baseGap + THREE.MathUtils.randFloatSpread(1.5), 8, 20);
+      const maxCenterSpread = (CEIL_Y - FLOOR_Y - gapSize - 4);
+      const gapCenter = FLOOR_Y + gapSize / 2 + 3 + Math.random() * Math.max(2, maxCenterSpread * 0.85);
+      const topHeight    = Math.max(1, CEIL_Y - (gapCenter + gapSize / 2));
+      const bottomHeight = Math.max(1, (gapCenter - gapSize / 2) - FLOOR_Y);
+
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x32ff87, emissive: 0x0b4d32, metalness: 0.6, roughness: 0.35
+      });
+
+      if (topHeight > 0.5) {
+        const topMesh = new THREE.Mesh(new THREE.BoxGeometry(PIPE_WIDTH, topHeight, PIPE_DEPTH), mat);
+        topMesh.position.set(lanePositions[i], gapCenter + gapSize / 2 + topHeight / 2, 0);
+        topMesh.castShadow = true;
+        group.add(topMesh);
+      }
+      if (bottomHeight > 0.5) {
+        const bottomMesh = new THREE.Mesh(new THREE.BoxGeometry(PIPE_WIDTH, bottomHeight, PIPE_DEPTH), mat);
+        bottomMesh.position.set(lanePositions[i], FLOOR_Y + bottomHeight / 2, 0);
+        bottomMesh.castShadow = true;
+        group.add(bottomMesh);
+      }
+      lanesInfo.push({ gapCenter, gapSize });
+    }
+    scene.add(group);
+    obstacles.push({ group, lanes: lanesInfo, z, cleared: false });
+  }
+
+  function ensureObstaclesAhead() {
+    const lookAhead = 320;
+    while (nextGroupZ < player.z + lookAhead) {
+      spawnObstacleGroup(nextGroupZ);
+      const spacingReduction = Math.min(15, score * 0.15);
+      const spacing = Math.max(55, currentLevelData.spacing - spacingReduction);
+      nextGroupZ += spacing;
+    }
+  }
+
+  function resetWorld() {
+    obstacles.forEach(obs => scene.remove(obs.group));
+    obstacles.length = 0;
+    nextGroupZ = player.z + 80;
+    trailParticles.forEach(p => { p.mesh.visible = false; trailPool.push(p); });
+    trailParticles.length = 0;
+    laneBoost.active = false;
+    laneBoost.laneIndex = null;
+    laneHighlights.forEach(h => { h.visible = false; h.material.opacity = 0; });
+  }
+
+  function startRun() {
+    state = STATE.PLAYING;
+    player.x = lanePositions[1];
+    player.targetLane = 1;
+    player.y = 16;
+    player.z = 0;
+    player.vy = 0;
+    score = 0;
+    forwardSpeed = 0;
+    speedBoostActive = false;
+    invincible = false;
+    invincibleTimer = 0;
+    mobileLaneGraceTimer = 0;
+    player.parts.bodyMat.emissive.setHex(0x442200);
+    nextPowerUpScore = powerUpPattern[0];
+    powerPatternIndex = 0;
+    flashIntensity = 0;
+    shakeIntensity = 0;
+    deathTimer = 0;
+    currentLevelData = getLevelData(score);
+    resetWorld();
+    ensureObstaclesAhead();
+    updateHUD();
+    menuOverlay.classList.remove('show');
+    gameoverOverlay.classList.remove('show');
+  }
+
+  function setMenuState() {
+    state = STATE.MENU;
+    player.z = 0;
+    player.x = lanePositions[1];
+    player.targetLane = 1;
+    player.y = 16;
+    player.vy = 0;
+    forwardSpeed = 0;
+    resetWorld();
+    menuOverlay.classList.add('show');
+    gameoverOverlay.classList.remove('show');
+  }
+
+  function die() {
+    if (invincible || state !== STATE.PLAYING) return;
+    state = STATE.DYING;
+    deathTimer = 0;
+    shakeIntensity = 3;
+    flashIntensity = 1;
+    player.vy = 10;
+    speedBoostActive = false;
+  }
+
+  function showGameOver() {
+    state = STATE.DEAD;
+    if (score > bestScore) {
+      bestScore = score;
+      localStorage.setItem('saifiFlappyBest', bestScore);
+      hudBest.textContent = bestScore;
+      menuBest.textContent = bestScore;
+    }
+    gameoverScore.textContent = score;
+    gameoverBest.textContent = bestScore;
+    gameoverLevel.textContent = `L${currentLevelData.level} · ${currentLevelData.label}`;
+    gameoverOverlay.classList.add('show');
+  }
+
+  function getLevelData(value) {
+    for (const cfg of levelConfigs) {
+      if (value >= cfg.min && value < cfg.max) return cfg;
+    }
+    if (value >= 200) {
+      const extra = Math.floor((value - 200) / 100);
+      return {
+        level: 6 + extra,
+        min: 200 + extra * 100,
+        max: 200 + (extra + 1) * 100,
+        gap: Math.max(7, 9 - extra * 0.4),
+        spacing: Math.max(50, 80 - extra * 2),
+        speed: 46 + extra * 2,
+        label: 'Hyper'
+      };
+    }
+    return levelConfigs[levelConfigs.length - 1];
+  }
+
+  function updateObstacles() {
+    for (let i = 0; i < obstacles.length; i++) {
+      const obs = obstacles[i];
+      if (!obs.cleared && player.z - player.radius > obs.z + PIPE_DEPTH * 0.5) {
+        obs.cleared = true;
+        score++;
+        currentLevelData = getLevelData(score);
+        checkPowerUpSchedule();
+        updateHUD();
+      }
+      if (player.z - obs.z > 240) {
+        scene.remove(obs.group);
+        obstacles.splice(i, 1);
+        i--;
+      }
+    }
+  }
+
+  function checkPipeCollision() {
+    for (const obs of obstacles) {
+      const dz = Math.abs(player.z - obs.z);
+      if (dz > PIPE_DEPTH * 0.5 + player.radius) continue;
+      for (let i = 0; i < lanePositions.length; i++) {
+        if (Math.abs(player.x - lanePositions[i]) <= laneHalf + 0.3) {
+          const laneGap = obs.lanes[i];
+          const gapHalf = laneGap.gapSize / 2;
+          if (player.y + player.radius > laneGap.gapCenter + gapHalf ||
+              player.y - player.radius < laneGap.gapCenter - gapHalf) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function activateInvincibility() {
+    invincible = true;
+    invincibleTimer = 8;
+    boostStatus.classList.add('active');
+    boostStatus.classList.remove('pulse');
+    player.parts.bodyMat.emissive.setHex(0x2bfdee);
+    flashIntensity = Math.max(flashIntensity, 0.3);
+  }
+
+  function scheduleNextPowerUp() {
+    powerPatternIndex = (powerPatternIndex + 1) % powerUpPattern.length;
+    nextPowerUpScore += powerUpPattern[powerPatternIndex];
+  }
+
+  function checkPowerUpSchedule() {
+    if (score >= nextPowerUpScore && !laneBoost.active) {
+      laneBoost.active = true;
+      laneBoost.laneIndex = Math.floor(Math.random() * lanePositions.length);
+      boostStatus.classList.add('pulse');
+    }
+  }
+
+  function updateHUD() {
+    hudScore.textContent = score;
+    hudLevel.textContent = `L${currentLevelData.level} · ${currentLevelData.label}`;
+    hudDiff.textContent  = `${currentLevelData.label} Pace`;
+    hudSpeed.textContent = `${Math.round(forwardSpeed)} u/s`;
+    const range = currentLevelData.max - currentLevelData.min;
+    let progress = range <= 0 ? 1 : (score - currentLevelData.min) / range;
+    if (currentLevelData.max === Infinity) {
+      progress = ((score - currentLevelData.min) % 100) / 100;
+    }
+    progress = THREE.MathUtils.clamp(progress, 0, 1);
+    hudProgress.style.width = `${progress * 100}%`;
+
+    if (invincible) {
+      boostStatus.textContent = `INVINCIBLE ${Math.ceil(invincibleTimer)}s`;
+    } else if (laneBoost.active) {
+      boostStatus.textContent = `Lane ${laneNames[laneBoost.laneIndex]} READY`;
+    } else if (speedBoostActive) {
+      boostStatus.textContent = 'Turbo Held';
+    } else {
+      boostStatus.classList.remove('pulse', 'active');
+      boostStatus.textContent = 'No Boost';
+    }
+  }
+
+  function updateTrail(dt) {
+    trailTimer += dt;
+    if (state === STATE.PLAYING && trailTimer > 0.02) {
+      trailTimer = 0;
+      let particle = trailPool.pop();
+      if (!particle) {
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.35, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0xfff7b0, transparent: true, opacity: 0.75, depthWrite: false })
+        );
+        mesh.renderOrder = 2;
+        scene.add(mesh);
+        particle = { mesh, life: 1 };
+      }
+      particle.life = 1;
+      particle.mesh.visible = true;
+      particle.mesh.material.opacity = 0.75;
+      particle.mesh.scale.setScalar(1);
+      particle.mesh.position.set(
+        player.x - 0.9 + THREE.MathUtils.randFloatSpread(0.6),
+        player.y + THREE.MathUtils.randFloatSpread(0.8),
+        player.z - 1.6
+      );
+      trailParticles.push(particle);
+    }
+
+    for (let i = 0; i < trailParticles.length; i++) {
+      const p = trailParticles[i];
+      p.life -= dt * 1.4;
+      if (p.life <= 0) {
+        p.mesh.visible = false;
+        trailPool.push(p);
+        trailParticles.splice(i, 1);
+        i--;
+      } else {
+        p.mesh.material.opacity = p.life * 0.7;
+        p.mesh.scale.setScalar(0.4 + (1 - p.life) * 0.3);
+      }
+    }
+  }
+
+  function updatePlayerVisuals(dt) {
+    player.mesh.position.set(player.x, player.y, player.z);
+    const lateral = player.x - lanePositions[player.targetLane];
+    player.roll = THREE.MathUtils.damp(player.roll, -lateral * 0.15, 6, dt);
+    player.mesh.rotation.set(
+      THREE.MathUtils.clamp(-player.vy * 0.015, -0.6, 0.4),
+      0,
+      THREE.MathUtils.clamp(player.roll, -0.3, 0.3)
+    );
+    const flap = Math.sin(globalTime * 12) * 0.35 + THREE.MathUtils.clamp(-player.vy * 0.02, -0.4, 0.4);
+    player.parts.wingL.rotation.x = flap;
+    player.parts.wingR.rotation.x = flap;
+    player.parts.wheel.rotation.y -= forwardSpeed * dt * 0.3;
+  }
+
+  function updateCamera(dt) {
+    const desiredPos = new THREE.Vector3(
+      player.x * 0.4,
+      THREE.MathUtils.clamp(player.y + 6, 8, 32),
+      player.z - 18
+    );
+    camera.position.lerp(desiredPos, 1 - Math.exp(-dt * 3));
+    cameraTarget.lerp(new THREE.Vector3(player.x, player.y + 1.5, player.z + 12), 1 - Math.exp(-dt * 7));
+
+    if (shakeIntensity > 0) {
+      camera.position.x += (Math.random() - 0.5) * shakeIntensity;
+      camera.position.y += (Math.random() - 0.5) * shakeIntensity * 0.6;
+      camera.position.z += (Math.random() - 0.5) * shakeIntensity;
+      shakeIntensity = Math.max(0, shakeIntensity - dt * 3);
+    }
+    camera.lookAt(cameraTarget);
+  }
+
+  function updateLaneHighlights() {
+    laneHighlights.forEach((mesh, idx) => {
+      if (laneBoost.active && laneBoost.laneIndex === idx) {
+        mesh.visible = true;
+        mesh.position.set(lanePositions[idx], FLOOR_Y + 0.02, player.z + 50);
+        mesh.material.opacity = 0.25 + 0.12 * Math.sin(globalTime * 6);
+      } else {
+        mesh.visible = false;
+      }
+    });
+  }
+
+  function handleLaneBoost() {
+    if (laneBoost.active) {
+      if (Math.abs(player.x - lanePositions[laneBoost.laneIndex]) < 0.15) {
+        laneBoost.active = false;
+        updateHUD();
+        laneHighlights[laneBoost.laneIndex].visible = false;
+        activateInvincibility();
+        scheduleNextPowerUp();
+      }
+    }
+  }
+
+  function updateMenu(dt) {
+    player.x = THREE.MathUtils.damp(player.x, lanePositions[1], 4, dt);
+    player.y = 15 + Math.sin(globalTime * 2) * 1.2;
+    player.z = THREE.MathUtils.damp(player.z, 0, 3, dt);
+    updatePlayerVisuals(dt);
+  }
+
+  function updatePlaying(dt) {
+    currentLevelData = getLevelData(score);
+    const difficultyBoost = Math.min(score * 0.08, 14);
+    const targetSpeed = currentLevelData.speed + difficultyBoost;
+    const target = targetSpeed * (speedBoostActive ? 1.5 : 1);
+    forwardSpeed = THREE.MathUtils.damp(forwardSpeed, target, 4, dt);
+    player.z += forwardSpeed * dt;
+
+    let effectiveGravity = GRAVITY;
+    if (isMobile && mobileLaneGraceTimer > 0) {
+      effectiveGravity = GRAVITY * MOBILE_GRAVITY_FACTOR;
+      mobileLaneGraceTimer -= dt;
+    }
+    player.vy += effectiveGravity * dt;
+    player.y  += player.vy * dt;
+    player.x   = THREE.MathUtils.damp(player.x, lanePositions[player.targetLane], 12, dt);
+
+    updatePlayerVisuals(dt);
+    ensureObstaclesAhead();
+    updateObstacles();
+    handleLaneBoost();
+
+    if (!invincible) {
+      if (player.y + player.radius >= CEIL_Y) {
+        player.y = CEIL_Y - player.radius; die();
+      } else if (player.y - player.radius <= FLOOR_Y) {
+        player.y = FLOOR_Y + player.radius; die();
+      } else if (checkPipeCollision()) {
+        die();
+      }
+    } else {
+      player.y = THREE.MathUtils.clamp(player.y, FLOOR_Y + player.radius * 0.6, CEIL_Y - player.radius * 0.6);
+      invincibleTimer -= dt;
+      if (invincibleTimer <= 0) {
+        invincible = false;
+        player.parts.bodyMat.emissive.setHex(0x442200);
+        boostStatus.classList.remove('active');
+        updateHUD();
+      } else {
+        boostStatus.textContent = `INVINCIBLE ${Math.ceil(invincibleTimer)}s`;
+      }
+    }
+  }
+
+  function updateDying(dt) {
+    deathTimer += dt;
+    player.vy += (GRAVITY * 0.6) * dt;
+    player.y  += player.vy * dt;
+    player.z  += forwardSpeed * dt * 0.6;
+    forwardSpeed = THREE.MathUtils.damp(forwardSpeed, 0, 1.5, dt);
+    if (player.y - player.radius <= FLOOR_Y) {
+      player.y = FLOOR_Y + player.radius;
+      player.vy = 0;
+    }
+    updatePlayerVisuals(dt);
+    if (deathTimer > 1.2) showGameOver();
+  }
+
+  function updateFlash(dt) {
+    flashIntensity = Math.max(0, flashIntensity - dt * 2.2);
+    flashLayer.style.opacity = flashIntensity.toFixed(3);
+  }
+
+  function loop() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    globalTime += dt;
+    starField.rotation.y += dt * 0.02;
+    grid.position.z = -(player.z % 40);
+    laneStrips.forEach(strip => strip.position.z = player.z);
+    updateLaneHighlights();
+    updateTrail(dt);
+
+    switch (state) {
+      case STATE.MENU:    updateMenu(dt);   break;
+      case STATE.PLAYING: updatePlaying(dt); break;
+      case STATE.DYING:   updateDying(dt);  break;
+      case STATE.DEAD:    updatePlayerVisuals(dt); break;
+    }
+
+    updateCamera(dt);
+    updateFlash(dt);
+    renderer.render(scene, camera);
+  }
+
+  renderer.setAnimationLoop(loop);
+
+  /* ════════════════════════════════════════════
+     SHARED HELPERS
+     ════════════════════════════════════════════ */
+  function shiftLane(delta) {
+    if (state !== STATE.PLAYING) return;
+    player.targetLane = THREE.MathUtils.clamp(player.targetLane + delta, 0, lanePositions.length - 1);
+  }
+
+  function flap() {
+    if (state !== STATE.PLAYING) return;
+    player.vy = FLAP_FORCE;
+    shakeIntensity = Math.min(1.2, shakeIntensity + 0.2);
+  }
+
+  /* ════════════════════════════════════════════
+     PC INPUT
+     ════════════════════════════════════════════ */
+  function handlePointerDown(e) {
+    e.preventDefault();
+    if (isMobile) return;
+    if (state === STATE.MENU || state === STATE.DEAD) { startRun(); return; }
+    if (state === STATE.PLAYING) flap();
+  }
+
+  function handleKeyDown(e) {
+    if (['Space','KeyW','KeyA','KeyD'].includes(e.code)) e.preventDefault();
+    if (e.code === 'KeyA') shiftLane(1);
+    if (e.code === 'KeyD') shiftLane(-1);
+    if (e.code === 'KeyW') speedBoostActive = true;
+    if (e.code === 'Space') {
+      if (state === STATE.PLAYING) flap();
+      else if (state === STATE.MENU || state === STATE.DEAD) startRun();
+    }
+  }
+
+  function handleKeyUp(e) {
+    if (e.code === 'KeyW') speedBoostActive = false;
+  }
+
+  /* ════════════════════════════════════════════
+     MOBILE TOUCH INPUT
+     ════════════════════════════════════════════ */
+  if (isMobile) {
+    const SWIPE_THRESHOLD_X = 30;
+    const SWIPE_THRESHOLD_Y = 40;
+    const SWIPE_MAX_TIME    = 350;
+    let mobileBoostTimeout  = null;
+
+    window.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      touchStartX    = e.touches[0].clientX;
+      touchStartY    = e.touches[0].clientY;
+      touchStartTime = Date.now();
+      touchSwiped    = false;
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (touchSwiped || e.touches.length !== 1) return;
+      if (state !== STATE.PLAYING) return;
+
+      const dx    = e.touches[0].clientX - touchStartX;
+      const dy    = e.touches[0].clientY - touchStartY;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      if (absDx > SWIPE_THRESHOLD_X && absDx > absDy * 1.3) {
+        e.preventDefault();
+        touchSwiped = true;
+        if (dx > 0) shiftLane(-1); else shiftLane(1);
+        mobileLaneGraceTimer = MOBILE_GRACE_DURATION;
+        return;
+      }
+      if (dy < -SWIPE_THRESHOLD_Y && absDy > absDx * 1.3) {
+        e.preventDefault();
+        touchSwiped = true;
+        speedBoostActive = true;
+        if (mobileBoostTimeout) clearTimeout(mobileBoostTimeout);
+        mobileBoostTimeout = setTimeout(() => { speedBoostActive = false; }, 1500);
+        return;
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+      if (touchSwiped) return;
+      const tag = (e.target && e.target.tagName) ? e.target.tagName : '';
+      if (tag === 'BUTTON') return;
+      const elapsed = Date.now() - touchStartTime;
+      if (elapsed < SWIPE_MAX_TIME) {
+        if (state === STATE.MENU || state === STATE.DEAD) startRun();
+        else if (state === STATE.PLAYING) flap();
+      }
+    }, { passive: true });
+  }
+
+  /* ════════════════════════════════════════════
+     COMMON LISTENERS
+     ════════════════════════════════════════════ */
+  function handleResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  startButton.addEventListener('click', startRun);
+  restartButton.addEventListener('click', startRun);
+  window.addEventListener('pointerdown', handlePointerDown, { passive: false });
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('resize', handleResize);
+
+  setMenuState();
+})();
+</script>
+</body>
+</html>
